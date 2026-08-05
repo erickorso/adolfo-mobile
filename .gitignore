@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
+# local QR helper
+expo-qr.png
+
 # typescript
 *.tsbuildinfo
 

@@ -10,11 +10,27 @@ export type User = {
   role: string;
 };
 
+export type SearchScopeApi = {
+  job_keywords: string[];
+  job_query: string;
+  course_query: string;
+};
+
+export type IngestResult = {
+  ingested: number;
+  sources?: string[];
+  query?: { keywords?: string[]; remoteOnly?: boolean };
+  imagen_semana?: unknown;
+};
+
 export type TokenResponse = {
   access_token: string;
   token_type: string;
   expires_in_minutes: number;
   user: User;
+  scope?: SearchScopeApi | null;
+  ingest?: IngestResult | null;
+  ingest_error?: string | null;
 };
 
 export type Job = {
@@ -39,6 +55,35 @@ export type Course = {
   location: string | null;
   target_audience: string | null;
   free: boolean;
+};
+
+export type CoachChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type CoachJobRef = {
+  id: string;
+  title: string;
+  company: string;
+  url: string;
+};
+
+export type CoachCourseRef = {
+  id: string;
+  title: string;
+  provider: string;
+  hours: number;
+  url: string;
+};
+
+export type CoachChatResponse = {
+  reply: string;
+  refs: {
+    jobs: CoachJobRef[];
+    courses: CoachCourseRef[];
+  };
+  provider?: string | null;
 };
 
 export class ApiError extends Error {
@@ -80,6 +125,16 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
+function qs(params: Record<string, string | number | undefined | null>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<TokenResponse>("/api/v1/auth/login", {
@@ -91,11 +146,52 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password, name }),
     }),
-  me: (token: string) =>
-    request<User>("/api/v1/auth/me", { token }),
-  jobs: (limit = 30) =>
-    request<Job[]>(`/api/v1/jobs?limit=${limit}`),
-  courses: (limit = 30) =>
-    request<Course[]>(`/api/v1/courses?limit=${limit}`),
+  me: (token: string) => request<User>("/api/v1/auth/me", { token }),
+  getScope: (token: string) =>
+    request<SearchScopeApi>("/api/v1/me/scope", { token }),
+  putScope: (
+    body: {
+      job_keywords?: string[];
+      job_query?: string;
+      course_query?: string;
+    },
+    token: string,
+  ) =>
+    request<SearchScopeApi>("/api/v1/me/scope", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(body),
+    }),
+  jobs: (opts: { limit?: number; q?: string; keywords?: string[] } = {}) => {
+    const { limit = 30, q, keywords } = opts;
+    return request<Job[]>(
+      `/api/v1/jobs${qs({
+        limit,
+        q,
+        keywords: keywords?.length ? keywords.join(",") : undefined,
+      })}`,
+    );
+  },
+  courses: (opts: { limit?: number; q?: string } = {}) => {
+    const { limit = 30, q } = opts;
+    return request<Course[]>(`/api/v1/courses${qs({ limit, q })}`);
+  },
+  ingestJobs: (opts: { keywords?: string[]; remoteOnly?: boolean } = {}) =>
+    request<IngestResult>("/api/v1/jobs/ingest", {
+      method: "POST",
+      body: JSON.stringify({
+        keywords: opts.keywords,
+        remote_only: opts.remoteOnly,
+      }),
+    }),
+  coachChat: (
+    body: { message: string; history?: CoachChatMessage[] },
+    token: string,
+  ) =>
+    request<CoachChatResponse>("/api/v1/coach/chat", {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    }),
   health: () => request<{ ok: boolean; service: string }>("/health"),
 };

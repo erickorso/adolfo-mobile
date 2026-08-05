@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { Platform } from "react-native";
-import { api, type User } from "./api";
+import { api, type TokenResponse, type User } from "./api";
+import { applyServerScope, syncScopeFromServer } from "./scope";
 
 const TOKEN_KEY = "adolfo_mobile_token";
 
@@ -40,6 +41,8 @@ type AuthContextValue = {
   user: User | null;
   token: string | null;
   loading: boolean;
+  lastIngest: TokenResponse["ingest"];
+  lastIngestError: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -51,6 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastIngest, setLastIngest] = useState<TokenResponse["ingest"]>(null);
+  const [lastIngestError, setLastIngestError] = useState<string | null>(null);
+
+  const applyAuth = useCallback(async (res: TokenResponse) => {
+    await saveToken(res.access_token);
+    setToken(res.access_token);
+    setUser(res.user);
+    setLastIngest(res.ingest ?? null);
+    setLastIngestError(res.ingest_error ?? null);
+    await applyServerScope(res.scope);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,10 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         const me = await api.me(stored);
-        if (!cancelled) {
-          setToken(stored);
-          setUser(me);
-        }
+        if (cancelled) return;
+        setToken(stored);
+        setUser(me);
+        await syncScopeFromServer(stored);
       } catch {
         await saveToken(null);
       } finally {
@@ -78,32 +92,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    await saveToken(res.access_token);
-    setToken(res.access_token);
-    setUser(res.user);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await api.login(email, password);
+      await applyAuth(res);
+    },
+    [applyAuth],
+  );
 
   const register = useCallback(
     async (email: string, password: string, name?: string) => {
       const res = await api.register(email, password, name);
-      await saveToken(res.access_token);
-      setToken(res.access_token);
-      setUser(res.user);
+      await applyAuth(res);
     },
-    [],
+    [applyAuth],
   );
 
   const logout = useCallback(async () => {
     await saveToken(null);
     setToken(null);
     setUser(null);
+    setLastIngest(null);
+    setLastIngestError(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout }),
-    [user, token, loading, login, register, logout],
+    () => ({
+      user,
+      token,
+      loading,
+      lastIngest,
+      lastIngestError,
+      login,
+      register,
+      logout,
+    }),
+    [
+      user,
+      token,
+      loading,
+      lastIngest,
+      lastIngestError,
+      login,
+      register,
+      logout,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -11,7 +11,8 @@ import { API_URL } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth-context";
 
 export default function AuthScreen() {
-  const { user, loading, login, register, logout } = useAuth();
+  const { user, loading, login, register, logout, lastIngest, lastIngestError } =
+    useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -51,6 +52,14 @@ export default function AuthScreen() {
         <Text style={styles.meta}>{user.email}</Text>
         <Text style={styles.meta}>Rol: {user.role}</Text>
         <Text style={styles.api}>API: {API_URL}</Text>
+        {lastIngest ? (
+          <Text style={styles.ok}>
+            Ingest al login: {lastIngest.ingested} jobs
+          </Text>
+        ) : null}
+        {lastIngestError ? (
+          <Text style={styles.error}>Ingest: {lastIngestError}</Text>
+        ) : null}
         <Pressable
           style={[styles.button, styles.secondary]}
           onPress={() => void logout()}
@@ -153,4 +162,5 @@ const styles = StyleSheet.create({
   secondaryText: { color: "#0f172a", fontWeight: "600", fontSize: 16 },
   switch: { textAlign: "center", color: "#0369a1", marginTop: 8 },
   error: { color: "#b91c1c" },
+  ok: { color: "#15803d", fontSize: 14 },
 });

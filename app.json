@@ -26,8 +26,12 @@
       "bundler": "metro"
     },
     "plugins": ["expo-router", "expo-secure-store"],
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER"
+    },
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     }
   }
 }
