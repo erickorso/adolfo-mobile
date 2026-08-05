@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
+import { useTranslation } from "../../src/i18n/I18nProvider";
 
 type IonName = ComponentProps<typeof Ionicons>["name"];
 
@@ -17,6 +18,8 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -34,8 +37,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="jobs"
         options={{
-          title: "Jobs",
-          headerTitle: "Jobs",
+          title: t("tabs.jobs"),
+          headerTitle: t("tabs.jobs"),
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="briefcase-outline" color={color} size={size} />
           ),
@@ -44,8 +47,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="courses"
         options={{
-          title: "Courses",
-          headerTitle: "Courses",
+          title: t("tabs.courses"),
+          headerTitle: t("tabs.courses"),
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="school-outline" color={color} size={size} />
           ),
@@ -54,8 +57,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="coach"
         options={{
-          title: "Coach",
-          headerTitle: "Career Coach",
+          title: t("tabs.coach"),
+          headerTitle: t("tabs.coachHeader"),
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="chatbubbles-outline" color={color} size={size} />
           ),
@@ -64,8 +67,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="scope"
         options={{
-          title: "Scope",
-          headerTitle: "Search scope",
+          title: t("tabs.scope"),
+          headerTitle: t("tabs.scopeHeader"),
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="options-outline" color={color} size={size} />
           ),
@@ -74,8 +77,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="auth"
         options={{
-          title: "Auth",
-          headerTitle: "Auth",
+          title: t("tabs.auth"),
+          headerTitle: t("tabs.auth"),
           tabBarIcon: ({ color, size }) => (
             <TabIcon name="person-circle-outline" color={color} size={size} />
           ),

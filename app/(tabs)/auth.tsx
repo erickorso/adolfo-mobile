@@ -7,10 +7,13 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useTranslation } from "../../src/i18n/I18nProvider";
+import { LanguageSwitcher } from "../../src/i18n/language-switcher";
 import { API_URL } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth-context";
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const { user, loading, login, register, logout, lastIngest, lastIngestError } =
     useAuth();
   const [email, setEmail] = useState("");
@@ -30,7 +33,7 @@ export default function AuthScreen() {
         await register(email.trim(), password, name.trim() || undefined);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Auth falló");
+      setError(e instanceof Error ? e.message : t("auth.failed"));
     } finally {
       setBusy(false);
     }
@@ -47,25 +50,28 @@ export default function AuthScreen() {
   if (user) {
     return (
       <View style={styles.container}>
-        <Text style={styles.heading}>Sesión activa</Text>
-        <Text style={styles.meta}>{user.name || "Sin nombre"}</Text>
+        <LanguageSwitcher />
+        <Text style={styles.heading}>{t("auth.sessionActive")}</Text>
+        <Text style={styles.meta}>{user.name || t("auth.noName")}</Text>
         <Text style={styles.meta}>{user.email}</Text>
-        <Text style={styles.meta}>Rol: {user.role}</Text>
-        <Text style={styles.api}>API: {API_URL}</Text>
+        <Text style={styles.meta}>{t("auth.role", { role: user.role })}</Text>
+        <Text style={styles.api}>{t("auth.api", { url: API_URL })}</Text>
         {lastIngest ? (
           <Text style={styles.ok}>
-            Ingest al login: {lastIngest.ingested} jobs
+            {t("auth.ingestLogin", { count: lastIngest.ingested })}
           </Text>
         ) : null}
         {lastIngestError ? (
-          <Text style={styles.error}>Ingest: {lastIngestError}</Text>
+          <Text style={styles.error}>
+            {t("auth.ingestError", { error: lastIngestError })}
+          </Text>
         ) : null}
         <Pressable
           style={[styles.button, styles.secondary]}
           onPress={() => void logout()}
           accessibilityRole="button"
         >
-          <Text style={styles.secondaryText}>Cerrar sesión</Text>
+          <Text style={styles.secondaryText}>{t("auth.logout")}</Text>
         </Pressable>
       </View>
     );
@@ -73,14 +79,15 @@ export default function AuthScreen() {
 
   return (
     <View style={styles.container}>
+      <LanguageSwitcher />
       <Text style={styles.heading}>
-        {mode === "login" ? "Ingresar" : "Crear cuenta"}
+        {mode === "login" ? t("auth.login") : t("auth.register")}
       </Text>
-      <Text style={styles.api}>API: {API_URL}</Text>
+      <Text style={styles.api}>{t("auth.api", { url: API_URL })}</Text>
       {mode === "register" ? (
         <TextInput
           style={styles.input}
-          placeholder="Nombre"
+          placeholder={t("auth.name")}
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
@@ -88,7 +95,7 @@ export default function AuthScreen() {
       ) : null}
       <TextInput
         style={styles.input}
-        placeholder="Email"
+        placeholder={t("auth.email")}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -97,7 +104,7 @@ export default function AuthScreen() {
       />
       <TextInput
         style={styles.input}
-        placeholder="Password (mín. 8 en register)"
+        placeholder={t("auth.password")}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -113,7 +120,7 @@ export default function AuthScreen() {
           <ActivityIndicator color="#fff" />
         ) : (
           <Text style={styles.buttonText}>
-            {mode === "login" ? "Login" : "Register"}
+            {mode === "login" ? t("auth.submitLogin") : t("auth.submitRegister")}
           </Text>
         )}
       </Pressable>
@@ -123,8 +130,8 @@ export default function AuthScreen() {
       >
         <Text style={styles.switch}>
           {mode === "login"
-            ? "¿No tenés cuenta? Registrate"
-            : "¿Ya tenés cuenta? Ingresá"}
+            ? t("auth.switchToRegister")
+            : t("auth.switchToLogin")}
         </Text>
       </Pressable>
     </View>

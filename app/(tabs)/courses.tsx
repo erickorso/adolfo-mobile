@@ -12,11 +12,13 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useTranslation } from "../../src/i18n/I18nProvider";
 import { api, type Course } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth-context";
 import { loadScope, saveScope } from "../../src/lib/scope";
 
 export default function CoursesScreen() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [q, setQ] = useState("");
@@ -34,9 +36,9 @@ export default function CoursesScreen() {
       const data = await api.courses({ q: search || undefined });
       setCourses(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar courses");
+      setError(e instanceof Error ? e.message : t("courses.loadError"));
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -117,12 +119,12 @@ export default function CoursesScreen() {
               style={styles.search}
               value={draft}
               onChangeText={setDraft}
-              placeholder="Buscar cursos…"
+              placeholder={t("courses.searchPlaceholder")}
               placeholderTextColor="#94a3b8"
               returnKeyType="search"
               blurOnSubmit
               onSubmitEditing={() => void applySearch()}
-              accessibilityLabel="Buscar cursos"
+              accessibilityLabel={t("courses.searchA11y")}
             />
             <Pressable
               style={[styles.searchBtn, searching && styles.searchBtnDisabled]}
@@ -130,21 +132,23 @@ export default function CoursesScreen() {
               disabled={searching}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Aplicar búsqueda"
+              accessibilityLabel={t("courses.applyA11y")}
             >
               {searching ? (
                 <ActivityIndicator color="#f8fafc" />
               ) : (
-                <Text style={styles.searchBtnText}>Buscar</Text>
+                <Text style={styles.searchBtnText}>{t("courses.search")}</Text>
               )}
             </Pressable>
           </View>
           {q ? (
             <Text style={styles.filterHint}>
-              Filtro: “{q}” · {courses.length} resultados
+              {t("courses.filterQuery", { q, count: courses.length })}
             </Text>
           ) : (
-            <Text style={styles.filterHint}>{courses.length} resultados</Text>
+            <Text style={styles.filterHint}>
+              {t("courses.filterCount", { count: courses.length })}
+            </Text>
           )}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
@@ -152,7 +156,7 @@ export default function CoursesScreen() {
       ListEmptyComponent={
         !error ? (
           <Text style={styles.muted}>
-            {q ? `Sin cursos para “${q}”.` : "Sin cursos."}
+            {q ? t("courses.emptyQuery", { q }) : t("courses.empty")}
           </Text>
         ) : null
       }
@@ -164,8 +168,9 @@ export default function CoursesScreen() {
         >
           <Text style={styles.title}>{item.title}</Text>
           <Text style={styles.meta}>
-            {item.provider} · {item.hours}h · {item.modality}
-            {item.free ? " · Free" : ""}
+            {item.provider} · {t("courses.hours", { count: item.hours })} ·{" "}
+            {item.modality}
+            {item.free ? ` · ${t("courses.free")}` : ""}
           </Text>
         </Pressable>
       )}

@@ -8,8 +8,18 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useTranslation } from "../../src/i18n/I18nProvider";
+import { LanguageSwitcher } from "../../src/i18n/language-switcher";
 import { api } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth-context";
+import {
+  clearGeminiApiKey,
+  getGeminiApiKey,
+  hasGeminiApiKey,
+  maskGeminiKey,
+  setGeminiApiKey,
+} from "../../src/lib/gemini-key";
+import { GeminiKeyInfoButton } from "../../src/lib/gemini-key-info-button";
 import {
   DEFAULT_SCOPE,
   fromApiScope,
@@ -20,6 +30,7 @@ import {
 } from "../../src/lib/scope";
 
 export default function ScopeScreen() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [keywordsText, setKeywordsText] = useState("");
   const [jobQuery, setJobQuery] = useState("");
@@ -29,6 +40,9 @@ export default function ScopeScreen() {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [geminiDraft, setGeminiDraft] = useState("");
+  const [hasGemini, setHasGemini] = useState(false);
+  const [geminiSaving, setGeminiSaving] = useState(false);
 
   const applyToForm = useCallback((scope: SearchScope) => {
     setKeywordsText(scope.jobKeywords.join(", "));
@@ -49,7 +63,12 @@ export default function ScopeScreen() {
             /* keep local */
           }
         }
-        if (!cancelled) applyToForm(scope);
+        const key = await getGeminiApiKey();
+        if (!cancelled) {
+          applyToForm(scope);
+          setHasGemini(Boolean(key));
+          setGeminiDraft(key ?? "");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,15 +94,35 @@ export default function ScopeScreen() {
       const scope = await saveScope(currentScope(), token);
       applyToForm(scope);
       setStatus(
-        token
-          ? "Scope guardado en tu cuenta."
-          : "Scope local. Logueate para sincronizar.",
+        token ? t("scope.savedAccount") : t("scope.savedLocal"),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar");
+      setError(e instanceof Error ? e.message : t("scope.saveFailed"));
     } finally {
       setSaving(false);
     }
+  };
+
+  const onSaveGemini = async () => {
+    setGeminiSaving(true);
+    setError(null);
+    try {
+      await setGeminiApiKey(geminiDraft);
+      const has = await hasGeminiApiKey();
+      setHasGemini(has);
+      setStatus(has ? t("scope.geminiSaved") : t("scope.geminiCleared"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("scope.geminiSaveFailed"));
+    } finally {
+      setGeminiSaving(false);
+    }
+  };
+
+  const onClearGemini = async () => {
+    await clearGeminiApiKey();
+    setGeminiDraft("");
+    setHasGemini(false);
+    setStatus(t("scope.geminiCleared"));
   };
 
   const onIngest = async () => {
@@ -97,10 +136,15 @@ export default function ScopeScreen() {
         remoteOnly: true,
       });
       setStatus(
-        `Ingest OK: ${result.ingested} jobs. Scope: ${(result.query?.keywords ?? scope.jobKeywords).slice(0, 6).join(", ")}…`,
+        t("scope.ingestOk", {
+          count: result.ingested,
+          keywords: (result.query?.keywords ?? scope.jobKeywords)
+            .slice(0, 6)
+            .join(", "),
+        }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ingest falló");
+      setError(e instanceof Error ? e.message : t("scope.ingestFailed"));
     } finally {
       setRunning(false);
     }
@@ -119,40 +163,39 @@ export default function ScopeScreen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.label}>Job keywords (CSV)</Text>
-      <Text style={styles.hint}>
-        Alimentan ingest al login y el listado. Ej: react, python, laravel
-      </Text>
+      <LanguageSwitcher />
+      <Text style={styles.label}>{t("scope.keywordsLabel")}</Text>
+      <Text style={styles.hint}>{t("scope.keywordsHint")}</Text>
       <TextInput
         style={[styles.input, styles.multiline]}
         value={keywordsText}
         onChangeText={setKeywordsText}
         multiline
-        placeholder="react, typescript, node…"
+        placeholder={t("scope.keywordsPlaceholder")}
         placeholderTextColor="#94a3b8"
-        accessibilityLabel="Keywords de jobs"
+        accessibilityLabel={t("scope.keywordsLabel")}
       />
 
-      <Text style={styles.label}>Job search</Text>
-      <Text style={styles.hint}>Última búsqueda libre en Jobs.</Text>
+      <Text style={styles.label}>{t("scope.jobSearchLabel")}</Text>
+      <Text style={styles.hint}>{t("scope.jobSearchHint")}</Text>
       <TextInput
         style={styles.input}
         value={jobQuery}
         onChangeText={setJobQuery}
-        placeholder="empresa, senior…"
+        placeholder={t("scope.jobSearchPlaceholder")}
         placeholderTextColor="#94a3b8"
-        accessibilityLabel="Búsqueda jobs"
+        accessibilityLabel={t("scope.jobSearchLabel")}
       />
 
-      <Text style={styles.label}>Course search</Text>
-      <Text style={styles.hint}>Query default / última en Courses.</Text>
+      <Text style={styles.label}>{t("scope.courseSearchLabel")}</Text>
+      <Text style={styles.hint}>{t("scope.courseSearchHint")}</Text>
       <TextInput
         style={styles.input}
         value={courseQuery}
         onChangeText={setCourseQuery}
-        placeholder="frontend, python…"
+        placeholder={t("scope.courseSearchPlaceholder")}
         placeholderTextColor="#94a3b8"
-        accessibilityLabel="Búsqueda default de cursos"
+        accessibilityLabel={t("scope.courseSearchLabel")}
       />
 
       <Pressable
@@ -162,7 +205,7 @@ export default function ScopeScreen() {
         accessibilityRole="button"
       >
         <Text style={styles.btnSecondaryText}>
-          {saving ? "Guardando…" : "Guardar scope"}
+          {saving ? t("scope.saving") : t("scope.saveScope")}
         </Text>
       </Pressable>
 
@@ -171,19 +214,61 @@ export default function ScopeScreen() {
         onPress={() => void onIngest()}
         disabled={running}
         accessibilityRole="button"
-        accessibilityLabel="Correr ingest ahora"
+        accessibilityLabel={t("scope.runIngest")}
       >
         <Text style={styles.btnPrimaryText}>
-          {running ? "Ingestando…" : "Run ingest now"}
+          {running ? t("scope.ingesting") : t("scope.runIngest")}
         </Text>
       </Pressable>
+
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{t("scope.geminiLabel")}</Text>
+        <GeminiKeyInfoButton />
+      </View>
+      <Text style={styles.hint}>{t("scope.geminiHint")}</Text>
+      <TextInput
+        style={styles.input}
+        value={geminiDraft}
+        onChangeText={setGeminiDraft}
+        placeholder={t("scope.geminiPlaceholder")}
+        placeholderTextColor="#94a3b8"
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        accessibilityLabel={t("coach.modalTitle")}
+      />
+      {hasGemini && geminiDraft.trim() ? (
+        <Text style={styles.hint}>
+          {t("scope.geminiMasked", { masked: maskGeminiKey(geminiDraft) })}
+        </Text>
+      ) : null}
+      <View style={styles.row}>
+        <Pressable
+          style={[styles.btn, styles.btnSecondary, styles.rowBtn]}
+          onPress={() => void onSaveGemini()}
+          disabled={geminiSaving}
+          accessibilityRole="button"
+        >
+          <Text style={styles.btnSecondaryText}>
+            {geminiSaving ? "…" : t("scope.geminiSave")}
+          </Text>
+        </Pressable>
+        {hasGemini ? (
+          <Pressable
+            style={[styles.btn, styles.btnSecondary, styles.rowBtn]}
+            onPress={() => void onClearGemini()}
+            accessibilityRole="button"
+            accessibilityLabel={t("common.remove")}
+          >
+            <Text style={styles.dangerText}>{t("common.remove")}</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {status ? <Text style={styles.ok}>{status}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Text style={styles.footer}>
-        Al login se corre ingest con tus keywords guardadas.
-      </Text>
+      <Text style={styles.footer}>{t("scope.footer")}</Text>
     </ScrollView>
   );
 }
@@ -191,7 +276,14 @@ export default function ScopeScreen() {
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { padding: 16, gap: 10 },
-  label: { fontSize: 15, fontWeight: "600", color: "#0f172a", marginTop: 8 },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 8,
+    gap: 8,
+  },
+  label: { fontSize: 15, fontWeight: "600", color: "#0f172a", flex: 1 },
   hint: { fontSize: 13, color: "#64748b", marginTop: -4 },
   input: {
     backgroundColor: "#fff",
@@ -219,6 +311,9 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: { color: "#f8fafc", fontWeight: "600", fontSize: 15 },
   btnSecondaryText: { color: "#0f172a", fontWeight: "600", fontSize: 15 },
+  row: { flexDirection: "row", gap: 8 },
+  rowBtn: { flex: 1 },
+  dangerText: { color: "#b91c1c", fontWeight: "600", fontSize: 15 },
   ok: { color: "#15803d", marginTop: 8 },
   error: { color: "#b91c1c", marginTop: 8 },
   footer: { marginTop: 16, fontSize: 12, color: "#94a3b8" },

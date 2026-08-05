@@ -12,11 +12,13 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
+import { useTranslation } from "../../src/i18n/I18nProvider";
 import { api, type Job } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth-context";
 import { loadScope, saveScope } from "../../src/lib/scope";
 
 export default function JobsScreen() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [q, setQ] = useState("");
@@ -38,9 +40,9 @@ export default function JobsScreen() {
       });
       setJobs(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar jobs");
+      setError(e instanceof Error ? e.message : t("jobs.loadError"));
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -134,12 +136,12 @@ export default function JobsScreen() {
               style={styles.search}
               value={draft}
               onChangeText={setDraft}
-              placeholder="Buscar título o empresa…"
+              placeholder={t("jobs.searchPlaceholder")}
               placeholderTextColor="#94a3b8"
               returnKeyType="search"
               blurOnSubmit
               onSubmitEditing={() => void applySearch()}
-              accessibilityLabel="Buscar jobs"
+              accessibilityLabel={t("jobs.searchA11y")}
             />
             <Pressable
               style={[styles.searchBtn, searching && styles.searchBtnDisabled]}
@@ -147,19 +149,23 @@ export default function JobsScreen() {
               disabled={searching}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Aplicar búsqueda"
+              accessibilityLabel={t("jobs.applyA11y")}
             >
               {searching ? (
                 <ActivityIndicator color="#f8fafc" />
               ) : (
-                <Text style={styles.searchBtnText}>Buscar</Text>
+                <Text style={styles.searchBtnText}>{t("jobs.search")}</Text>
               )}
             </Pressable>
           </View>
           {q ? (
-            <Text style={styles.filterHint}>Filtro: “{q}” · {jobs.length} resultados</Text>
+            <Text style={styles.filterHint}>
+              {t("jobs.filterQuery", { q, count: jobs.length })}
+            </Text>
           ) : (
-            <Text style={styles.filterHint}>{jobs.length} resultados</Text>
+            <Text style={styles.filterHint}>
+              {t("jobs.filterCount", { count: jobs.length })}
+            </Text>
           )}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
@@ -167,7 +173,7 @@ export default function JobsScreen() {
       ListEmptyComponent={
         !error ? (
           <Text style={styles.muted}>
-            {q ? `Sin vacantes para “${q}”.` : "Sin vacantes públicas."}
+            {q ? t("jobs.emptyQuery", { q }) : t("jobs.empty")}
           </Text>
         ) : null
       }
@@ -181,7 +187,7 @@ export default function JobsScreen() {
           <Text style={styles.meta}>
             {item.company}
             {item.location ? ` · ${item.location}` : ""}
-            {item.remote ? " · Remote" : ""}
+            {item.remote ? ` · ${t("jobs.remote")}` : ""}
           </Text>
         </Pressable>
       )}

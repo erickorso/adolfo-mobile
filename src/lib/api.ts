@@ -1,3 +1,5 @@
+import { getGeminiApiKey } from "./gemini-key";
+
 /** Base URL del BFF FastAPI (adolfo/services/mobile-api). */
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:4002";
@@ -84,14 +86,53 @@ export type CoachChatResponse = {
     courses: CoachCourseRef[];
   };
   provider?: string | null;
+  conversation_id: string;
+};
+
+export type CoachConversation = {
+  id: string;
+  title: string;
+  locale: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+};
+
+export type CoachMessageStored = {
+  id: string;
+  role: "user" | "assistant" | string;
+  content: string;
+  created_at: string;
+  refs?: {
+    jobs: CoachJobRef[];
+    courses: CoachCourseRef[];
+  } | null;
+  provider?: string | null;
+};
+
+export type CoachConversationDetail = {
+  id: string;
+  title: string;
+  locale: string;
+  created_at: string;
+  updated_at: string;
+  messages: CoachMessageStored[];
 };
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
+  retryAfterSec?: number;
 
-  constructor(status: number, message: string) {
+  constructor(
+    status: number,
+    message: string,
+    opts?: { code?: string; retryAfterSec?: number },
+  ) {
     super(message);
     this.status = status;
+    this.code = opts?.code;
+    this.retryAfterSec = opts?.retryAfterSec;
   }
 }
 
@@ -111,18 +152,48 @@ async function request<T>(
 
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
+    let retryAfterSec: number | undefined;
     try {
-      const body = (await res.json()) as { detail?: unknown };
+      const body = (await res.json()) as {
+        detail?: unknown;
+        error?: string;
+        code?: string;
+        retryAfterSec?: number;
+      };
       if (typeof body.detail === "string") {
         detail = body.detail;
+      } else if (body.detail && typeof body.detail === "object") {
+        const d = body.detail as {
+          message?: string;
+          code?: string;
+          retryAfterSec?: number;
+        };
+        detail = d.message || detail;
+        code = d.code;
+        retryAfterSec = d.retryAfterSec;
+      } else if (typeof body.error === "string") {
+        detail = body.error;
+      }
+      if (typeof body.code === "string") code = body.code;
+      if (typeof body.retryAfterSec === "number") {
+        retryAfterSec = body.retryAfterSec;
       }
     } catch {
       /* ignore */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, { code, retryAfterSec });
   }
 
-  return (await res.json()) as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 function qs(params: Record<string, string | number | undefined | null>): string {
@@ -184,14 +255,38 @@ export const api = {
         remote_only: opts.remoteOnly,
       }),
     }),
-  coachChat: (
-    body: { message: string; history?: CoachChatMessage[] },
+  coachChat: async (
+    body: {
+      message: string;
+      history?: CoachChatMessage[];
+      locale?: string;
+      conversation_id?: string | null;
+    },
     token: string,
-  ) =>
-    request<CoachChatResponse>("/api/v1/coach/chat", {
+  ) => {
+    const userKey = await getGeminiApiKey();
+    return request<CoachChatResponse>("/api/v1/coach/chat", {
       method: "POST",
       token,
+      headers: userKey ? { "X-User-Gemini-Key": userKey } : undefined,
       body: JSON.stringify(body),
+    });
+  },
+  coachConversations: (token: string) =>
+    request<CoachConversation[]>("/api/v1/coach/conversations", { token }),
+  coachConversation: (id: string, token: string) =>
+    request<CoachConversationDetail>(`/api/v1/coach/conversations/${id}`, {
+      token,
+    }),
+  createCoachConversation: (token: string, locale?: string) =>
+    request<CoachConversation>(
+      `/api/v1/coach/conversations${locale ? `?locale=${encodeURIComponent(locale)}` : ""}`,
+      { method: "POST", token },
+    ),
+  deleteCoachConversation: (id: string, token: string) =>
+    request<void>(`/api/v1/coach/conversations/${id}`, {
+      method: "DELETE",
+      token,
     }),
   health: () => request<{ ok: boolean; service: string }>("/health"),
 };
